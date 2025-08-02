@@ -1,25 +1,36 @@
-import Uppy from '@uppy/core';
-import Dashboard from '@uppy/dashboard';
-import AwsS3 from '@uppy/aws-s3';
+// REMOVED: Uppy imports because they are loaded from CDN in index.html
+// REMOVED: Uppy CSS imports because they are loaded from CDN in index.html
 
-// Import all CSS directly in your main.ts so Vite bundles it
-import '@uppy/core/dist/style.css';
-import '@uppy/dashboard/dist/style.css';
-import './style.css'; // <--- IMPORTANT: Add this line to import your custom style.css
+import './style.css'; // Keep this line to import your custom styles
 
-// ... (rest of your Uppy code, as previously corrected) ...
+// --- Type Declarations for Global Uppy (FOR THIS WORKAROUND ONLY) ---
+// This tells TypeScript that window.Uppy exists and what its structure is.
+// In a proper npm-based setup, Uppy's own type definitions handle this automatically.
+declare global {
+  interface Window {
+    Uppy: {
+      Core: new (options: any) => any; // Define Uppy.Core as a constructor that takes any options and returns any type
+      Dashboard: new (uppy: any, options: any) => any; // Define Uppy.Dashboard similarly
+      AwsS3: new (uppy: any, options: any) => any; // Define Uppy.AwsS3 similarly
+      // Add other Uppy components you use from CDN here if needed (e.g., Tus, XHRUpload)
+    };
+  }
+}
+// --- END Type Declarations ---
 
-const uppy = new Uppy({ debug: true, autoProceed: false });
 
-uppy.use(Dashboard, {
+// Use global Uppy objects exposed by the CDN
+const uppy = new window.Uppy.Core({ debug: true, autoProceed: false });
+
+uppy.use(window.Uppy.Dashboard, {
   inline: true,
-  target: '#drag-drop-area',
+  target: '#drag-drop-area', // Ensure this ID exists in your index.html
   showProgressDetails: true,
 });
 
-uppy.use(AwsS3, {
-  async getUploadParameters(file: import('@uppy/core').UppyFile<{}, {}>) {
-    const currentUser = 'sebastian'; // Replace with actual authenticated user data.
+uppy.use(window.Uppy.AwsS3, {
+  async getUploadParameters(file: any) { // Using 'any' for quick workaround
+    const currentUser = 'sebastian'; // IMPORTANT: Replace securely in production!
 
     const response = await fetch('https://qfiknfbru7xmrtczcqy2767hju0innfi.lambda-url.us-west-2.on.aws/', {
       method: 'POST',
@@ -58,19 +69,19 @@ uppy.use(AwsS3, {
       }
     };
   }
-} as unknown as import('@uppy/aws-s3').AwsS3Options<{}, {}>);
+} as any); // Using 'any' for quick workaround
 
-uppy.on('complete', (result) => {
+uppy.on('complete', (result: any) => { // Using 'any' for quick workaround
   console.log('Upload complete! Successful files:', result.successful);
   if (result.failed && result.failed.length > 0) {
-    console.error('Upload failed for files:', result.failed);
-    alert(`Upload complete with errors. Some files failed: ${result.failed.map(f => f.name).join(', ')}`);
+    // FIX: Parameter 'f' implicitly has an 'any' type.
+    alert(`Upload complete with errors. Some files failed: ${result.failed.map((f: any) => f.name).join(', ')}`);
   } else {
     alert('All files uploaded successfully!');
   }
 });
 
-uppy.on('upload-success', (file, response) => {
+uppy.on('upload-success', (file: any, response: any) => { // Using 'any' for quick workaround
   if (file) {
     console.log('✔ Upload successful:', file.name);
     console.log('S3 Key:', file.meta.s3Key);
@@ -80,7 +91,7 @@ uppy.on('upload-success', (file, response) => {
   }
 });
 
-uppy.on('upload-error', (file, error) => {
+uppy.on('upload-error', (file: any, error: any) => { // Using 'any' for quick workaround
   if (file) {
     console.error('✘ Upload failed:', file.name, error);
     alert(`Upload failed for ${file.name}: ${error.message || error}`);

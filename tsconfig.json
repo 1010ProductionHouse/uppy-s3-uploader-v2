@@ -6,20 +6,24 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
 
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
+    /* Bundler mode - Removing options that conflict with direct JS emit */
+    "moduleResolution": "bundler", // Keep this, it's generally fine
+    // REMOVE THIS: "allowImportingTsExtensions": true,
+    // REMOVE THIS: "verbatimModuleSyntax": true,
+    // REMOVE THIS: "moduleDetection": "force",
 
-    /* Linting */
+    // --- CRITICAL CHANGES FOR THE WORKAROUND (Confirmed) ---
+    "noEmit": false, // <--- This was changed from true
+    "outDir": "dist", // <--- Added this
+    "rootDir": "src", // <--- Added this
+
+    /* Linting (keeping only the essential ones that don't conflict) */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noFallthroughCasesInSwitch": true
+    // REMOVE THIS: "erasableSyntaxOnly": true,
+    // REMOVE THIS: "noUncheckedSideEffectImports": true
   },
   "include": ["src"]
 }
