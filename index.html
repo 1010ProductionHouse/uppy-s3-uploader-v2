@@ -1,11 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + TS</title>
-    </head>
-  <body>
-    <h1>Upload Files to S3</h1> <div id="drag-drop-area"></div> </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uppy S3 Uploader (Workaround - Self-Hosted)</title>
+
+  <link href="/uppy-s3-uploader-v2/uppy.min.css" rel="stylesheet">
+  <link href="/uppy-s3-uploader-v2/uppy-dashboard.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/uppy-s3-uploader-v2/style.css" />
+
+  <script src="/uppy-s3-uploader-v2/Uppy.js"></script>
+  <script src="/uppy-s3-uploader-v2/Dashboard.js"></script>
+  <script src="/uppy-s3-uploader-v2/AwsS3.js"></script>
+
+
+</head>
+<body>
+  <h1>Upload Files to S3 (Workaround - Self-Hosted)</h1>
+  <div id="drag-drop-area"></div>
+
+  <script type="module" src="/uppy-s3-uploader-v2/main.js"></script>
+
+</body>
 </html>
