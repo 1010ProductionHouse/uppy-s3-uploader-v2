@@ -1,6 +1,6 @@
 // REMOVED: Uppy imports because they are loaded from CDN in index.html
 // REMOVED: Uppy CSS imports because they are loaded from CDN in index.html
-import './style.css'; // Keep this line to import your custom styles
+// REMOVED: import './style.css'; // REMOVED as style.css is now directly linked in index.html
 // --- END Type Declarations ---
 // Use global Uppy objects exposed by the CDN
 const uppy = new window.Uppy.Core({ debug: true, autoProceed: false });
@@ -48,7 +48,6 @@ uppy.use(window.Uppy.AwsS3, {
 uppy.on('complete', (result) => {
     console.log('Upload complete! Successful files:', result.successful);
     if (result.failed && result.failed.length > 0) {
-        // FIX: Parameter 'f' implicitly has an 'any' type.
         alert(`Upload complete with errors. Some files failed: ${result.failed.map((f) => f.name).join(', ')}`);
     }
     else {
@@ -75,3 +74,4 @@ uppy.on('upload-error', (file, error) => {
         alert(`Upload failed: ${error.message || error}`);
     }
 });
+export {};

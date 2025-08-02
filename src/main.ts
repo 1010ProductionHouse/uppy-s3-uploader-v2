@@ -1,7 +1,6 @@
 // REMOVED: Uppy imports because they are loaded from CDN in index.html
 // REMOVED: Uppy CSS imports because they are loaded from CDN in index.html
-
-import './style.css'; // Keep this line to import your custom styles
+// REMOVED: import './style.css'; // REMOVED as style.css is now directly linked in index.html
 
 // --- Type Declarations for Global Uppy (FOR THIS WORKAROUND ONLY) ---
 // This tells TypeScript that window.Uppy exists and what its structure is.
@@ -9,9 +8,9 @@ import './style.css'; // Keep this line to import your custom styles
 declare global {
   interface Window {
     Uppy: {
-      Core: new (options: any) => any; // Define Uppy.Core as a constructor that takes any options and returns any type
-      Dashboard: new (uppy: any, options: any) => any; // Define Uppy.Dashboard similarly
-      AwsS3: new (uppy: any, options: any) => any; // Define Uppy.AwsS3 similarly
+      Core: new (options: any) => any;
+      Dashboard: new (uppy: any, options: any) => any;
+      AwsS3: new (uppy: any, options: any) => any;
       // Add other Uppy components you use from CDN here if needed (e.g., Tus, XHRUpload)
     };
   }
@@ -74,7 +73,6 @@ uppy.use(window.Uppy.AwsS3, {
 uppy.on('complete', (result: any) => { // Using 'any' for quick workaround
   console.log('Upload complete! Successful files:', result.successful);
   if (result.failed && result.failed.length > 0) {
-    // FIX: Parameter 'f' implicitly has an 'any' type.
     alert(`Upload complete with errors. Some files failed: ${result.failed.map((f: any) => f.name).join(', ')}`);
   } else {
     alert('All files uploaded successfully!');
@@ -100,3 +98,5 @@ uppy.on('upload-error', (file: any, error: any) => { // Using 'any' for quick wo
     alert(`Upload failed: ${error.message || error}`);
   }
 });
+
+export {}; // <--- ADD THIS LINE at the very end of the file.
