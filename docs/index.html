@@ -56,6 +56,7 @@
         const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod';
 
         // Placeholder for the NEXUDUS member ID.
+        // In a full implementation, this would be passed securely from NEXUDUS.
         const NEXUDUS_MEMBER_ID = 'member-12345';
         
         // This is where Uppy will put the uploaded files in your S3 bucket.
@@ -81,64 +82,41 @@
                 { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
             ],
         })
-        .use(Uppy.AwsS3, {
-            getSignedUrl: (file, options) => {
-                return new Promise(async (resolve, reject) => {
-                    try {
-                        const credentials = await getCredentialsFromCognito();
-                        
-                        const s3 = new AWS.S3({
-                            region: AWS.config.region,
-                            accessKeyId: credentials.AccessKeyId,
-                            secretAccessKey: credentials.SecretKey,
-                            sessionToken: credentials.SessionToken,
-                        });
+        .use(Uppy.XHRUpload, {
+            endpoint: API_GATEWAY_URL, 
+            method: 'POST',
+            formData: true,
+            fieldName: 'files[]',
+            headers: {
+                // This header is a simple way to pass the member ID to your Lambda
+                'X-Uploader-ID': NEXUDUS_MEMBER_ID,
+            },
+            
+            // This function is what Uppy will call before each upload
+            // to get the pre-signed URL from your Lambda.
+            onRequest: (request, file) => {
+                const presignerData = {
+                    filename: file.name,
+                    filetype: file.type,
+                    memberId: NEXUDUS_MEMBER_ID // Pass the user ID to the Lambda
+                };
+                request.body = JSON.stringify(presignerData);
+                request.setHeader('Content-Type', 'application/json');
+            },
 
-                        const key = `${S3_KEY_PREFIX}${file.name}`;
-                        
-                        s3.getSignedUrl('putObject', {
-                            Bucket: S3_BUCKET_NAME,
-                            Key: key,
-                            ContentType: file.type,
-                        }, (err, url) => {
-                            if (err) {
-                                return reject(err);
-                            }
-                            resolve({
-                                method: 'PUT',
-                                url,
-                                fields: {},
-                                headers: {
-                                    'x-amz-acl': 'private',
-                                },
-                            });
-                        });
-                    } catch (error) {
-                        console.error("Error getting credentials:", error);
-                        reject(error);
-                    }
-                });
-            }
+            // This function handles the response from your Lambda
+            // and tells Uppy where to upload the file.
+            getResponseData: (responseText, xhr) => {
+                const response = JSON.parse(responseText);
+                return {
+                    method: 'PUT',
+                    url: response.url,
+                    headers: {
+                        'x-amz-acl': 'private',
+                    },
+                };
+            },
         });
-
-        async function getCredentialsFromCognito() {
-            const cognitoidentity = new AWS.CognitoIdentity();
-            const getIdResponse = await cognitoidentity.getId({
-                IdentityPoolId: IDENTITY_POOL_ID,
-                Logins: {
-                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID 
-                }
-            }).promise();
-
-            const getCredentialsResponse = await cognitoidentity.getCredentialsForIdentity({
-                IdentityId: getIdResponse.IdentityId,
-                Logins: {
-                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID
-                }
-            }).promise();
-
-            return getCredentialsResponse.Credentials;
-        }
 
         uppy.on('complete', result => {
             const statusDiv = document.getElementById('upload-status');
