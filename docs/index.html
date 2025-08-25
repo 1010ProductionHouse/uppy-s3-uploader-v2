@@ -81,7 +81,7 @@
                 { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
             ],
         })
-        .use(Uppy.AwsS3, {
+        .use(Uppy.XHRUpload, {
             getSignedUrl: (file, options) => {
                 return new Promise(async (resolve, reject) => {
                     try {
@@ -105,12 +105,8 @@
                                 return reject(err);
                             }
                             resolve({
-                                method: 'PUT',
                                 url,
-                                fields: {},
-                                headers: {
-                                    'x-amz-acl': 'private',
-                                },
+                                method: 'PUT',
                             });
                         });
                     } catch (error) {
@@ -118,12 +114,10 @@
                         reject(error);
                     }
                 });
-            }
+            },
         });
 
         async function getCredentialsFromCognito() {
-            // This function simulates the call to our Lambda function (the 'gatekeeper').
-            
             const cognitoidentity = new AWS.CognitoIdentity();
             const getIdResponse = await cognitoidentity.getId({
                 IdentityPoolId: IDENTITY_POOL_ID,
