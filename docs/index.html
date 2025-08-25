@@ -82,45 +82,48 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            getSignedUrl: async (file) => {
-                try {
-                    const credentials = await getCredentialsFromCognito();
-                    
-                    const s3 = new AWS.S3({
-                        region: AWS.config.region,
-                        accessKeyId: credentials.AccessKeyId,
-                        secretAccessKey: credentials.SecretKey,
-                        sessionToken: credentials.SessionToken,
-                    });
+            getSignedUrl: (file, options) => {
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        const credentials = await getCredentialsFromCognito();
+                        
+                        const s3 = new AWS.S3({
+                            region: AWS.config.region,
+                            accessKeyId: credentials.AccessKeyId,
+                            secretAccessKey: credentials.SecretKey,
+                            sessionToken: credentials.SessionToken,
+                        });
 
-                    const key = `${S3_KEY_PREFIX}${file.name}`;
-                    
-                    const url = s3.getSignedUrl('putObject', {
-                        Bucket: S3_BUCKET_NAME,
-                        Key: key,
-                        ContentType: file.type,
-                    });
-
-                    return {
-                        method: 'PUT',
-                        url,
-                        fields: {},
-                        headers: {
-                            'x-amz-acl': 'private',
-                        },
-                    };
-
-                } catch (error) {
-                    console.error("Error getting credentials:", error);
-                    throw error; // Propagate the error to Uppy
-                }
+                        const key = `${S3_KEY_PREFIX}${file.name}`;
+                        
+                        s3.getSignedUrl('putObject', {
+                            Bucket: S3_BUCKET_NAME,
+                            Key: key,
+                            ContentType: file.type,
+                        }, (err, url) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve({
+                                method: 'PUT',
+                                url,
+                                fields: {},
+                                headers: {
+                                    'x-amz-acl': 'private',
+                                },
+                            });
+                        });
+                    } catch (error) {
+                        console.error("Error getting credentials:", error);
+                        reject(error);
+                    }
+                });
             }
         });
 
         async function getCredentialsFromCognito() {
             // This function simulates the call to our Lambda function (the 'gatekeeper').
             
-            // Step 1: Get an Identity ID from Cognito.
             const cognitoidentity = new AWS.CognitoIdentity();
             const getIdResponse = await cognitoidentity.getId({
                 IdentityPoolId: IDENTITY_POOL_ID,
@@ -129,7 +132,6 @@
                 }
             }).promise();
 
-            // Step 2: Use the Identity ID to get temporary credentials.
             const getCredentialsResponse = await cognitoidentity.getCredentialsForIdentity({
                 IdentityId: getIdResponse.IdentityId,
                 Logins: {
