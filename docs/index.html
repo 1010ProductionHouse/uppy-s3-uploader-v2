@@ -56,18 +56,15 @@
         const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod';
 
         // Placeholder for the NEXUDUS member ID.
-        // In a full implementation, this would be passed securely from NEXUDUS.
-        // For a demonstration, we will use a hardcoded value.
         const NEXUDUS_MEMBER_ID = 'member-12345';
         
         // This is where Uppy will put the uploaded files in your S3 bucket.
-        // The member ID ensures each member has their own folder.
         const S3_KEY_PREFIX = `uploads/${NEXUDUS_MEMBER_ID}/`;
         
         const uppy = new Uppy.Uppy({
             debug: true,
             restrictions: {
-                maxFileSize: 5000000000, // 5GB limit, adjust as needed
+                maxFileSize: 5000000000,
                 maxNumberOfFiles: 10,
                 minNumberOfFiles: 1,
             },
@@ -85,61 +82,49 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            getSignedUrl: (file, options) => {
-                // This is the correct method for direct-to-S3 uploads
-                return new Promise(async (resolve, reject) => {
-                    try {
-                        const credentials = await getCredentialsFromCognito();
-                        
-                        const s3 = new AWS.S3({
-                            region: AWS.config.region,
-                            accessKeyId: credentials.AccessKeyId,
-                            secretAccessKey: credentials.SecretKey,
-                            sessionToken: credentials.SessionToken,
-                        });
+            getSignedUrl: async (file) => {
+                try {
+                    const credentials = await getCredentialsFromCognito();
+                    
+                    const s3 = new AWS.S3({
+                        region: AWS.config.region,
+                        accessKeyId: credentials.AccessKeyId,
+                        secretAccessKey: credentials.SecretKey,
+                        sessionToken: credentials.SessionToken,
+                    });
 
-                        const key = `${S3_KEY_PREFIX}${file.name}`;
-                        
-                        // Generate a presigned URL for the upload
-                        s3.getSignedUrl('putObject', {
-                            Bucket: S3_BUCKET_NAME,
-                            Key: key,
-                            ContentType: file.type,
-                        }, (err, url) => {
-                            if (err) {
-                                return reject(err);
-                            }
-                            resolve({
-                                method: 'PUT',
-                                url,
-                                fields: {}, // No additional fields needed for a direct PUT
-                                headers: {
-                                    'x-amz-acl': 'private', // Keep files private by default
-                                },
-                            });
-                        });
+                    const key = `${S3_KEY_PREFIX}${file.name}`;
+                    
+                    const url = s3.getSignedUrl('putObject', {
+                        Bucket: S3_BUCKET_NAME,
+                        Key: key,
+                        ContentType: file.type,
+                    });
 
-                    } catch (error) {
-                        console.error("Error getting credentials:", error);
-                        reject(error);
-                    }
-                });
+                    return {
+                        method: 'PUT',
+                        url,
+                        fields: {},
+                        headers: {
+                            'x-amz-acl': 'private',
+                        },
+                    };
+
+                } catch (error) {
+                    console.error("Error getting credentials:", error);
+                    throw error; // Propagate the error to Uppy
+                }
             }
         });
 
         async function getCredentialsFromCognito() {
             // This function simulates the call to our Lambda function (the 'gatekeeper').
-            // In a production setup, your Lambda would return the credentials.
-            // For now, we use a mock to demonstrate how it works.
             
             // Step 1: Get an Identity ID from Cognito.
-            // This is the unique identifier for the authenticated user.
             const cognitoidentity = new AWS.CognitoIdentity();
             const getIdResponse = await cognitoidentity.getId({
                 IdentityPoolId: IDENTITY_POOL_ID,
                 Logins: {
-                    // This tells Cognito that your custom provider (the Lambda function)
-                    // has authenticated the user. The value is the member ID.
                     'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID 
                 }
             }).promise();
