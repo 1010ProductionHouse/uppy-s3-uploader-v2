@@ -1,25 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Uppy S3 Uploader (Workaround - Self-Hosted)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1010 Production House - File Uploader</title>
+    
+    <!-- Tailwind CSS for a modern, mobile-friendly design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        .uppy-Root {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+    
+    <!-- Uppy CSS and JS from CDN -->
+    <link href="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.css" rel="stylesheet">
+    <script src="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.js"></script>
 
-  <link href="/uppy-s3-uploader-v2/uppy.min.css" rel="stylesheet">
-  <link href="/uppy-s3-uploader-v2/uppy-dashboard.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/uppy-s3-uploader-v2/style.css" />
-
-  <script src="/uppy-s3-uploader-v2/Uppy.js"></script>
-  <script src="/uppy-s3-uploader-v2/Dashboard.js"></script>
-  <script src="/uppy-s3-uploader-v2/AwsS3.js"></script>
-
-
+    <!-- AWS SDK for JavaScript from CDN -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1120.0.min.js"></script>
 </head>
-<body>
-  <h1>Upload Files to S3 (Workaround - Self-Hosted)</h1>
-  <div id="drag-drop-area"></div>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4">
 
-  <script type="module" src="/uppy-s3-uploader-v2/main.js"></script>
+    <div class="max-w-4xl w-full bg-gray-800 rounded-lg shadow-xl p-8 space-y-6">
+        <header class="text-center">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
+                1010 Production House
+            </h1>
+            <h2 class="mt-2 text-xl font-medium text-gray-300">Member Footage Uploader</h2>
+            <p class="mt-4 text-gray-400">
+                Please upload your files securely below. You can upload multiple files at once.
+            </p>
+        </header>
 
+        <!-- Uppy Dashboard will be injected here -->
+        <div id="uppy-dashboard" class="border-2 border-dashed border-gray-600 rounded-lg p-4"></div>
+
+        <div id="upload-status" class="mt-4 text-center"></div>
+    </div>
+
+    <script>
+        // Set up the AWS SDK configuration
+        AWS.config.update({
+            region: 'us-west-2',
+        });
+
+        // --- IMPORTANT: CONFIGURE YOUR VALUES HERE ---
+        const IDENTITY_POOL_ID = 'us-west-2:870a65b0-5406-4545-aa87-369e41b7bbf8';
+        const S3_BUCKET_NAME = 'edit-in-cloud-media-transfer';
+
+        // Placeholder for the NEXUDUS member ID.
+        // In a full implementation, this would be passed securely from NEXUDUS.
+        // For a demonstration, we will use a hardcoded value.
+        const NEXUDUS_MEMBER_ID = 'member-12345';
+        
+        // This is where Uppy will put the uploaded files in your S3 bucket.
+        // The member ID ensures each member has their own folder.
+        const S3_KEY_PREFIX = `uploads/${NEXUDUS_MEMBER_ID}/`;
+
+        // The URL of your API Gateway endpoint for the credentials Lambda function.
+        // This is the "gatekeeper" that we designed.
+        const API_GATEWAY_URL = 'https://YOUR_API_GATEWAY_URL';
+
+        const uppy = new Uppy.Core({
+            debug: true,
+            restrictions: {
+                maxFileSize: 5000000000, // 5GB limit, adjust as needed
+                maxNumberOfFiles: 10,
+                minNumberOfFiles: 1,
+            },
+        })
+        .use(Uppy.Dashboard, {
+            target: '#uppy-dashboard',
+            inline: true,
+            showProgressDetails: true,
+            proudlyDisplayPoweredByUppy: false,
+            note: 'Video files up to 5 GB are supported.',
+            theme: 'dark',
+            metaFields: [
+                { id: 'name', name: 'File Name', placeholder: 'Enter file name' },
+                { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
+            ],
+        })
+        .use(Uppy.AwsS3, {
+            get){
+                // This function is where we securely get temporary credentials.
+                // It replaces the direct API call in the Uppy plugin.
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        const credentials = await getCredentialsFromCognito();
+                        
+                        const s3 = new AWS.S3({
+                            region: AWS.config.region,
+                            accessKeyId: credentials.AccessKeyId,
+                            secretAccessKey: credentials.SecretKey,
+                            sessionToken: credentials.SessionToken,
+                        });
+
+                        const key = `${S3_KEY_PREFIX}${file.name}`;
+                        
+                        // Generate a presigned URL for the upload
+                        s3.getSignedUrl('putObject', {
+                            Bucket: S3_BUCKET_NAME,
+                            Key: key,
+                            ContentType: file.type,
+                        }, (err, url) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve({
+                                method: 'PUT',
+                                url,
+                                fields: {}, // No additional fields needed for a direct PUT
+                                headers: {
+                                    'x-amz-acl': 'private', // Keep files private by default
+                                },
+                            });
+                        });
+
+                    } catch (error) {
+                        console.error("Error getting credentials:", error);
+                        reject(error);
+                    }
+                });
+            }
+        });
+
+        async function getCredentialsFromCognito() {
+            // This function simulates the call to our Lambda function (the 'gatekeeper').
+            // In a production setup, your Lambda would return the credentials.
+            // For now, we use a mock to demonstrate how it works.
+            
+            // Step 1: Get an Identity ID from Cognito.
+            // This is the unique identifier for the authenticated user.
+            const cognitoidentity = new AWS.CognitoIdentity();
+            const getIdResponse = await cognitoidentity.getId({
+                IdentityPoolId: IDENTITY_POOL_ID,
+                Logins: {
+                    // This tells Cognito that your custom provider (the Lambda function)
+                    // has authenticated the user. The value is the member ID.
+                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID 
+                }
+            }).promise();
+
+            // Step 2: Use the Identity ID to get temporary credentials.
+            const getCredentialsResponse = await cognitoidentity.getCredentialsForIdentity({
+                IdentityId: getIdResponse.IdentityId,
+                Logins: {
+                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID
+                }
+            }).promise();
+
+            return getCredentialsResponse.Credentials;
+        }
+
+        uppy.on('complete', result => {
+            const statusDiv = document.getElementById('upload-status');
+            if (result.successful.length > 0) {
+                statusDiv.innerHTML = `<p class="text-green-400 font-semibold">Upload Complete! ${result.successful.length} file(s) uploaded successfully.</p>`;
+            }
+            if (result.failed.length > 0) {
+                statusDiv.innerHTML += `<p class="text-red-400 font-semibold">Upload Failed for ${result.failed.length} file(s).</p>`;
+            }
+        });
+    </script>
 </body>
 </html>
