@@ -85,8 +85,8 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            // This is the correct method for direct-to-S3 uploads
-            getSignedUrl: (file) => {
+            getSignedUrl: (file, options) => {
+                // This is the correct method for direct-to-S3 uploads
                 return new Promise(async (resolve, reject) => {
                     try {
                         const credentials = await getCredentialsFromCognito();
@@ -124,8 +124,7 @@
                         reject(error);
                     }
                 });
-            },
-            companionUrl: '' // ADDED THIS LINE TO DISABLE COMPANION
+            }
         });
 
         async function getCredentialsFromCognito() {
