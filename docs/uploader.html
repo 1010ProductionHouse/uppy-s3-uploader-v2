@@ -1,4 +1,3 @@
-<!-- Final Version -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>1010 Production House - File Uploader</title>
     
+    <!-- Tailwind CSS for a modern, mobile-friendly design -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -18,9 +18,11 @@
         }
     </style>
     
+    <!-- Uppy CSS and JS from CDN -->
     <link href="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.css" rel="stylesheet">
     <script src="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.js"></script>
 
+    <!-- AWS SDK for JavaScript from CDN -->
     <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1120.0.min.js"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4">
@@ -36,6 +38,7 @@
             </p>
         </header>
 
+        <!-- Uppy Dashboard will be injected here -->
         <div id="uppy-dashboard" class="border-2 border-dashed border-gray-600 rounded-lg p-4"></div>
 
         <div id="upload-status" class="mt-4 text-center"></div>
@@ -50,6 +53,7 @@
         // --- IMPORTANT: CONFIGURE YOUR VALUES HERE ---
         const IDENTITY_POOL_ID = 'us-west-2:870a65b0-5406-4545-aa87-369e41b7bbf8';
         const S3_BUCKET_NAME = 'edit-in-cloud-media-transfer';
+        const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod';
 
         // Placeholder for the NEXUDUS member ID.
         // In a full implementation, this would be passed securely from NEXUDUS.
@@ -59,12 +63,8 @@
         // This is where Uppy will put the uploaded files in your S3 bucket.
         // The member ID ensures each member has their own folder.
         const S3_KEY_PREFIX = `uploads/${NEXUDUS_MEMBER_ID}/`;
-
-        // The URL of your API Gateway endpoint for the credentials Lambda function.
-        // This is the "gatekeeper" that we designed.
-        const API_GATEWAY_URL = 'https://YOUR_API_GATEWAY_URL';
-
-        const uppy = new Uppy.Core({
+        
+        const uppy = new Uppy.Uppy({
             debug: true,
             restrictions: {
                 maxFileSize: 5000000000, // 5GB limit, adjust as needed
@@ -85,9 +85,8 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            get){
-                // This function is where we securely get temporary credentials.
-                // It replaces the direct API call in the Uppy plugin.
+            getSignedUrl: (file, options) => {
+                // This is the correct method for direct-to-S3 uploads
                 return new Promise(async (resolve, reject) => {
                     try {
                         const credentials = await getCredentialsFromCognito();
