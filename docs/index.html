@@ -76,47 +76,69 @@
             proudlyDisplayPoweredByUppy: false,
             note: 'Video files up to 5 GB are supported.',
             theme: 'dark',
+            metaFields: [
+                { id: 'name', name: 'File Name', placeholder: 'Enter file name' },
+                { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
+            ],
         })
-        .use(Uppy.XHRUpload, {
-            // This is the endpoint that Uppy will make a POST request to.
-            // It will call your UPPYS3PRESIGNER Lambda via API Gateway.
-            endpoint: API_GATEWAY_URL, 
-            method: 'POST',
-            formData: true,
-            fieldName: 'files[]',
-            headers: {
-                // Pass the member ID in a custom header for your Lambda to use.
-                'X-Uploader-ID': NEXUDUS_MEMBER_ID,
-            },
-            // The onRequest method is a critical part of the new workflow.
-            // It modifies the request before Uppy sends it to S3.
-            onRequest: (request) => {
-                const { key, uniqueName, filename, contentType } = file.meta;
-                const body = {
-                    username: NEXUDUS_MEMBER_ID, // Your Lambda function will use this to find the correct folder
-                    filename: filename
-                };
+        .use(Uppy.AwsS3, {
+            getSignedUrl: (file, options) => {
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        const credentials = await getCredentialsFromCognito();
+                        
+                        const s3 = new AWS.S3({
+                            region: AWS.config.region,
+                            accessKeyId: credentials.AccessKeyId,
+                            secretAccessKey: credentials.SecretKey,
+                            sessionToken: credentials.SessionToken,
+                        });
 
-                // The Lambda function will return a pre-signed URL and key.
-                // We'll set the request body here.
-                request.body = JSON.stringify(body);
-                request.setHeader('Content-Type', 'application/json');
-            },
-            // The onUploadStarted method is also important.
-            // It generates the pre-signed URL and updates the upload request.
-            onUploadStarted: async (upload, file) => {
-                // This is a new, simplified approach that just gets a presigned URL directly.
-                const url = new URL(file.uploadURL);
-                const response = await fetch(url, {
-                    method: 'PUT',
-                    body: file.data,
-                    headers: { 'Content-Type': file.data.type }
+                        const key = `${S3_KEY_PREFIX}${file.name}`;
+                        
+                        s3.getSignedUrl('putObject', {
+                            Bucket: S3_BUCKET_NAME,
+                            Key: key,
+                            ContentType: file.type,
+                        }, (err, url) => {
+                            if (err) {
+                                return reject(err);
+                            }
+                            resolve({
+                                method: 'PUT',
+                                url,
+                                fields: {},
+                                headers: {
+                                    'x-amz-acl': 'private',
+                                },
+                            });
+                        });
+                    } catch (error) {
+                        console.error("Error getting credentials:", error);
+                        reject(error);
+                    }
                 });
-                if (!response.ok) {
-                    throw new Error('Failed to upload file');
-                }
             }
         });
+
+        async function getCredentialsFromCognito() {
+            const cognitoidentity = new AWS.CognitoIdentity();
+            const getIdResponse = await cognitoidentity.getId({
+                IdentityPoolId: IDENTITY_POOL_ID,
+                Logins: {
+                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID 
+                }
+            }).promise();
+
+            const getCredentialsResponse = await cognitoidentity.getCredentialsForIdentity({
+                IdentityId: getIdResponse.IdentityId,
+                Logins: {
+                    'cognito-identity.amazonaws.com/NEXUDUS-API': NEXUDUS_MEMBER_ID
+                }
+            }).promise();
+
+            return getCredentialsResponse.Credentials;
+        }
 
         uppy.on('complete', result => {
             const statusDiv = document.getElementById('upload-status');
