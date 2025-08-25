@@ -88,7 +88,7 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            get){
+            get: (file) => {
                 // This function is where we securely get temporary credentials.
                 // It replaces the direct API call in the Uppy plugin.
                 return new Promise(async (resolve, reject) => {
