@@ -85,9 +85,8 @@
             ],
         })
         .use(Uppy.AwsS3, {
-            getSignedUrl: (file) => { // CHANGED THIS LINE
-                // This function is where we securely get temporary credentials.
-                // It replaces the direct API call in the Uppy plugin.
+            // This is the correct method for direct-to-S3 uploads
+            getSignedUrl: (file, options) => {
                 return new Promise(async (resolve, reject) => {
                     try {
                         const credentials = await getCredentialsFromCognito();
