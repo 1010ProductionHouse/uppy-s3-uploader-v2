@@ -53,6 +53,7 @@
         // --- IMPORTANT: CONFIGURE YOUR VALUES HERE ---
         const IDENTITY_POOL_ID = 'us-west-2:870a65b0-5406-4545-aa87-369e41b7bbf8';
         const S3_BUCKET_NAME = 'edit-in-cloud-media-transfer';
+        const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod';
 
         // Placeholder for the NEXUDUS member ID.
         // In a full implementation, this would be passed securely from NEXUDUS.
@@ -62,12 +63,8 @@
         // This is where Uppy will put the uploaded files in your S3 bucket.
         // The member ID ensures each member has their own folder.
         const S3_KEY_PREFIX = `uploads/${NEXUDUS_MEMBER_ID}/`;
-
-        // The URL of your API Gateway endpoint for the credentials Lambda function.
-        // This is the "gatekeeper" that we designed.
-        const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod';
-
-        const uppy = new Uppy.Core({
+        
+        const uppy = new Uppy.Uppy({
             debug: true,
             restrictions: {
                 maxFileSize: 5000000000, // 5GB limit, adjust as needed
