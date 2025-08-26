@@ -1,87 +1,132 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>File Uploader</title>
-  
-  <link href="https://releases.transloadit.com/uppy/v2.10.0/uppy.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1010 Production House - File Uploader</title>
+    
+    <!-- Tailwind CSS for a modern, mobile-friendly design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+        .uppy-Root {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+    
+    <!-- Uppy CSS and JS from CDN -->
+    <link href="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.css" rel="stylesheet">
+    <script src="https://releases.transloadit.com/uppy/v3.21.0/uppy.min.js"></script>
+
+    <!-- AWS SDK for JavaScript from CDN -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1120.0.min.js"></script>
 </head>
-<body>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex items-center justify-center p-4">
 
-  <h1>Upload Your Files</h1>
-  
-  <div id="drag-drop-area"></div>
+    <div class="max-w-4xl w-full bg-gray-800 rounded-lg shadow-xl p-8 space-y-6">
+        <header class="text-center">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-500">
+                1010 Production House
+            </h1>
+            <h2 class="mt-2 text-xl font-medium text-gray-300">Member Footage Uploader</h2>
+            <p class="mt-4 text-gray-400">
+                Please upload your files securely below. You can upload multiple files at once.
+            </p>
+        </header>
 
-  <script src="https://releases.transloadit.com/uppy/v2.10.0/uppy.min.js"></script>
+        <!-- Uppy Dashboard will be injected here -->
+        <div id="uppy-dashboard" class="border-2 border-dashed border-gray-600 rounded-lg p-4"></div>
 
-  <script>
-    // Replace this with a dynamic value from your authentication process
-    const MEMBER_ID = 'your-member-id-here'; 
-    const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod/Nexudus-EC2-Gatekeeper';
+        <div id="upload-status" class="mt-4 text-center"></div>
+    </div>
 
-    const { Uppy, DragDrop, AwsS3 } = Uppy;
-
-    const uppy = new Uppy({
-      restrictions: {
-        maxNumberOfFiles: 1, // Only one file can be uploaded at a time
-        maxFileSize: 100 * 1024 * 1024 // 100MB in bytes
-      }
-    });
-
-    uppy.use(DragDrop, {
-      target: '#drag-drop-area'
-    });
-
-    uppy.use(AwsS3, {
-      getUploadParameters(file) {
-        // Send a request to your Lambda API to get the pre-signed S3 URL
-        return fetch(API_GATEWAY_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // RECOMMENDED: Pass the member ID in a custom header
-            'X-Uploader-ID': MEMBER_ID
-          },
-          body: JSON.stringify({
-            filename: file.name,
-            filetype: file.type
-          })
-        }).then(response => {
-          if (!response.ok) {
-            throw new Error(`Server returned a ${response.status} status code`);
-          }
-          return response.json();
-        }).then(data => {
-          // The data received from Lambda should contain the pre-signed S3 URL and other required fields.
-          // Your Lambda's response body: {"url": "...", "key": "..."}
-          return {
-            method: 'PUT',
-            url: data.url,
-            // The file's key is included in the URL, so we don't need a `fields` object
-            fields: {}, 
-            headers: {
-              'Content-Type': file.type
-            }
-          };
+    <script>
+        // Set up the AWS SDK configuration
+        AWS.config.update({
+            region: 'us-west-2',
         });
-      }
-    });
 
-    // Log success events to the console
-    uppy.on('complete', (result) => {
-      console.log('Upload complete! We’ve uploaded these files:', result.successful);
-    });
+        // --- IMPORTANT: CONFIGURE YOUR VALUES HERE ---
+        const IDENTITY_POOL_ID = 'us-west-2:870a65b0-5406-4545-aa87-369e41b7bbf8';
+        const S3_BUCKET_NAME = 'edit-in-cloud-media-transfer';
+        const API_GATEWAY_URL = 'https://wituigrjpl.execute-api.us-west-2.amazonaws.com/prod/Nexudus-EC2-Gatekeeper';
 
-    // Log errors for debugging
-    uppy.on('file-added', (file) => {
-      console.log('File added:', file.name);
-    });
+        // Placeholder for the NEXUDUS member ID.
+        // In a full implementation, this would be passed securely from NEXUDUS.
+        const NEXUDUS_MEMBER_ID = 'member-12345';
+        
+        // This is where Uppy will put the uploaded files in your S3 bucket.
+        const S3_KEY_PREFIX = `uploads/${NEXUDUS_MEMBER_ID}/`;
+        
+        const uppy = new Uppy.Uppy({
+            debug: true,
+            restrictions: {
+                maxFileSize: 5000000000,
+                maxNumberOfFiles: 10,
+                minNumberOfFiles: 1,
+            },
+        })
+        .use(Uppy.Dashboard, {
+            target: '#uppy-dashboard',
+            inline: true,
+            showProgressDetails: true,
+            proudlyDisplayPoweredByUppy: false,
+            note: 'Video files up to 5 GB are supported.',
+            theme: 'dark',
+            metaFields: [
+                { id: 'name', name: 'File Name', placeholder: 'Enter file name' },
+                { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
+            ],
+        })
+        .use(Uppy.XHRUpload, {
+            endpoint: API_GATEWAY_URL, 
+            method: 'POST',
+            formData: true,
+            fieldName: 'files[]',
+            headers: {
+                // This header is a simple way to pass the member ID to your Lambda
+                'X-Uploader-ID': NEXUDUS_MEMBER_ID,
+            },
+            
+            // This function is what Uppy will call before each upload
+            // to get the pre-signed URL from your Lambda.
+            onRequest: (request, file) => {
+                const presignerData = {
+                    filename: file.name,
+                    filetype: file.type,
+                    memberId: NEXUDUS_MEMBER_ID // Pass the user ID to the Lambda
+                };
+                request.body = JSON.stringify(presignerData);
+                request.setHeader('Content-Type', 'application/json');
+            },
 
-    uppy.on('error', (error) => {
-      console.error('Uppy error:', error);
-    });
-  </script>
+            // This function handles the response from your Lambda
+            // and tells Uppy where to upload the file.
+            getResponseData: (responseText, xhr) => {
+                const response = JSON.parse(responseText);
+                return {
+                    method: 'PUT',
+                    url: response.url,
+                    headers: {
+                        'x-amz-acl': 'private',
+                    },
+                };
+            },
+        });
 
+        uppy.on('complete', result => {
+            const statusDiv = document.getElementById('upload-status');
+            if (result.successful.length > 0) {
+                statusDiv.innerHTML = `<p class="text-green-400 font-semibold">Upload Complete! ${result.successful.length} file(s) uploaded successfully.</p>`;
+            }
+            if (result.failed.length > 0) {
+                statusDiv.innerHTML += `<p class="text-red-400 font-semibold">Upload Failed for ${result.failed.length} file(s).</p>`;
+            }
+        });
+    </script>
 </body>
 </html>
