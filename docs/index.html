@@ -82,41 +82,48 @@
                 { id: 'category', name: 'Category', placeholder: 'e.g. Footage, Edit' }
             ],
         })
-        .use(Uppy.XHRUpload, {
-            endpoint: API_GATEWAY_URL, 
-            method: 'POST',
-            formData: true,
-            fieldName: 'files[]',
-            headers: {
-                // This header is a simple way to pass the member ID to your Lambda
-                'X-Uploader-ID': NEXUDUS_MEMBER_ID,
-            },
-            
-            // This function is what Uppy will call before each upload
-            // to get the pre-signed URL from your Lambda.
-            onRequest: (request, file) => {
-                const presignerData = {
-                    filename: file.name,
-                    filetype: file.type,
-                    memberId: NEXUDUS_MEMBER_ID // Pass the user ID to the Lambda
-                };
-                request.body = JSON.stringify(presignerData);
-                request.setHeader('Content-Type', 'application/json');
-            },
+        // Presigner API that returns a presigned S3 PUT URL
+const PRESIGN_URL = 'https://<your-api-id>.execute-api.us-west-2.amazonaws.com/prod/uppys3presigner';
 
-            // This function handles the response from your Lambda
-            // and tells Uppy where to upload the file.
-            getResponseData: (responseText, xhr) => {
-                const response = JSON.parse(responseText);
-                return {
-                    method: 'PUT',
-                    url: response.url,
-                    headers: {
-                        'x-amz-acl': 'private',
-                    },
-                };
-            },
-        });
+// Optional: derive username from query string ?user=...
+const params = new URLSearchParams(location.search);
+const DEFAULT_USERNAME = params.get('user') || 'testuser';
+
+uppy.use(Uppy.AwsS3, {
+  async getUploadParameters(file) {
+    // 1) Ask your Lambda for a presigned URL
+    const resp = await fetch(PRESIGN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: DEFAULT_USERNAME,        // your Lambda expects "username"
+        filename: file.name,               // your Lambda expects "filename"
+        filetype: file.type || 'application/octet-stream' // your Lambda expects "filetype"
+      })
+    });
+
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`Presign failed: ${resp.status} ${txt}`);
+    }
+
+    // Your Lambda returns { presignedUrl, key }
+    const { presignedUrl } = await resp.json();
+
+    // 2) Tell Uppy how to upload to S3
+    return {
+      method: 'PUT',
+      url: presignedUrl,
+      headers: {
+        // These MUST match what was used in the signature
+        'Content-Type': file.type || 'application/octet-stream',
+        // Your current presigner includes x-amz-meta-uploadedby in the signature:
+        'x-amz-meta-uploadedby': DEFAULT_USERNAME
+      }
+      // No body here; Uppy supplies the file bytes automatically
+    };
+  }
+});
 
         uppy.on('complete', result => {
             const statusDiv = document.getElementById('upload-status');
